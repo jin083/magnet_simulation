@@ -2,72 +2,69 @@
 
 ## Simulation Principle
 
-### Magpylib의 자기장 계산 원리
+### Magnetic Field Calculation Principles in Magpylib
 
-Magpylib은 영구자석의 자기장을 **해석적(analytical)** 방법으로 계산합니다. 수치적 방법(FEM 등)과 달리 정확한 수학적 해를 사용합니다.
+Magpylib calculates the magnetic field of permanent magnets using **analytical** methods. Unlike numerical methods (such as FEM), it uses exact mathematical solutions.
 
-#### 1. 등가 전류 모델 (Equivalent Current Model)
+#### 1. Equivalent Current Model
 
-영구자석은 **등가 표면 전류**로 모델링됩니다:
-- 균일하게 자화된 물체는 표면에 흐르는 전류로 대체 가능
-- 표면 전류 밀도: **K = M × n̂** (M: 자화, n̂: 표면 법선)
+Permanent magnets are modeled as **equivalent surface currents**:
+- Uniformly magnetized objects can be replaced by currents flowing on the surface
+- Surface current density: $\mathbf{K} = \mathbf{M} \times \hat{\mathbf{n}}$ (M: magnetization, $\hat{\mathbf{n}}$: surface normal)
 
-원통형 자석의 경우:
-- 측면에 원형으로 흐르는 표면 전류
-- 솔레노이드와 동일한 자기장 분포
+For cylindrical magnets:
+- Circular surface current flowing on the lateral surface
+- Same magnetic field distribution as a solenoid
 
-#### 2. 비오-사바르 법칙 (Biot-Savart Law)
+#### 2. Biot-Savart Law
 
-기본 원리는 비오-사바르 법칙에서 출발:
+The fundamental principle starts from the Biot-Savart law:
 
-```
-dB = (μ₀/4π) × (I dl × r̂) / r²
-```
+$$d\mathbf{B} = \frac{\mu_0}{4\pi} \frac{I \, d\mathbf{l} \times \hat{\mathbf{r}}}{r^2}$$
 
-여기서:
-- μ₀: 진공의 투자율
-- I: 전류
-- dl: 전류 요소
-- r: 관측점까지의 거리
+Where:
+- $\mu_0$: Permeability of free space
+- $I$: Current
+- $d\mathbf{l}$: Current element
+- $r$: Distance to observation point
 
-#### 3. 원통 자석의 해석적 해 (Analytical Solution)
+#### 3. Analytical Solution for Cylindrical Magnets
 
-Magpylib은 원통 자석에 대해 **타원 적분(Elliptic Integrals)**을 사용한 정확한 해석적 해를 사용합니다:
+Magpylib uses exact analytical solutions with **Elliptic Integrals** for cylindrical magnets:
 
-축 방향 자기장 (Bz):
-```
-Bz = (μ₀M/4π) × [적분 표현식 with K(k), E(k)]
-```
+Axial magnetic field ($B_z$):
 
-여기서 K(k)와 E(k)는 제1종, 제2종 완전 타원 적분입니다.
+$$B_z = \frac{\mu_0 M}{4\pi} \left[ \text{integral expression with } K(k), E(k) \right]$$
 
-이 방법의 장점:
-- FEM보다 빠른 계산 속도
-- 메시 의존성 없음
-- 수학적으로 정확한 해
+Where $K(k)$ and $E(k)$ are complete elliptic integrals of the first and second kind, respectively.
 
-#### 4. 중첩 원리 (Superposition Principle)
+Advantages of this method:
+- Faster computation than FEM
+- No mesh dependency
+- Mathematically exact solution
 
-복잡한 형상은 기본 자석들의 중첩으로 계산:
-```
-B_total = Σ B_i
-```
+#### 4. Superposition Principle
 
-### 자석 내부 vs 외부 자기장
+Complex geometries are calculated by superposition of basic magnets:
 
-**외부 (r > R)**:
-- 자기 쌍극자 근사 (먼 거리)
-- 정확한 타원 적분 해 (근거리)
+$$\mathbf{B}_{total} = \sum_i \mathbf{B}_i$$
 
-**내부 (r < R)**:
-- B = μ₀(H + M) = μ₀H + Br
-- 반자기장(Demagnetizing field) 고려
+### Magnetic Field Inside vs Outside the Magnet
+
+**Outside ($r > R$)**:
+- Magnetic dipole approximation (far field)
+- Exact elliptic integral solution (near field)
+
+**Inside ($r < R$)**:
+- $\mathbf{B} = \mu_0(\mathbf{H} + \mathbf{M}) = \mu_0\mathbf{H} + B_r$
+- Demagnetizing field considered
 
 ### Key Equations
-- **Magnetization**: M = Br / μ₀ [A/m]
-- **Magnetic permeability of vacuum**: μ₀ = 4π × 10⁻⁷ [H/m]
+
+- **Magnetization**: $M = \frac{B_r}{\mu_0}$ [A/m]
+- **Magnetic permeability of vacuum**: $\mu_0 = 4\pi \times 10^{-7}$ [H/m]
 - **Field units**: 1 T = 10,000 G (Gauss)
-- **Surface current density**: K = M × n̂ [A/m]
+- **Surface current density**: $\mathbf{K} = \mathbf{M} \times \hat{\mathbf{n}}$ [A/m]
 
 ---
 
@@ -77,12 +74,12 @@ B_total = Σ B_i
 |-----------|--------|-------|------|
 | **Material** | - | Sm₂Co₁₇ (Samarium Cobalt) | - |
 | **Grade** | - | YXG-32H | - |
-| **Remanence** | Br | 1.10 – 1.13 (avg: 1.115) | T |
-| **Coercivity Force** | Hcb | 812 – 860 (avg: 836) | kA/m |
-| **Intrinsic Coercivity** | Hcj | ≥ 1990 | kA/m |
-| **Max Energy Product** | (BH)max | 230 – 255 (avg: 242.5) | kJ/m³ |
+| **Remanence** | $B_r$ | 1.10 – 1.13 (avg: 1.115) | T |
+| **Coercivity Force** | $H_{cb}$ | 812 – 860 (avg: 836) | kA/m |
+| **Intrinsic Coercivity** | $H_{cj}$ | ≥ 1990 | kA/m |
+| **Max Energy Product** | $(BH)_{max}$ | 230 – 255 (avg: 242.5) | kJ/m³ |
 | **Max Working Temp** | - | 350 | °C |
-| **Calculated Magnetization** | M | ~8.87 × 10⁵ | A/m |
+| **Calculated Magnetization** | $M$ | $\sim 8.87 \times 10^5$ | A/m |
 
 ---
 
@@ -116,7 +113,7 @@ B_total = Σ B_i
 
 ## Expected Field Values
 
-| Position (z) | |B| (Gauss) | |B| (Tesla) |
+| Position (z) | $|\mathbf{B}|$ (Gauss) | $|\mathbf{B}|$ (Tesla) |
 |--------------|-------------|------------|
 | Center (0 mm) | ~5,575 | ~0.558 |
 | Surface (17.5 mm) | ~3,500 | ~0.350 |
