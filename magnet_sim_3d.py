@@ -120,10 +120,11 @@ pl.add_mesh(
     show_scalar_bar=True,
     scalar_bar_args={
         "title": "|B| [T]",
-        "title_font_size": 12,
+        "title_font_size": 20,
+        "label_font_size": 16,
         "color": "black",
         "position_x": 0.85,
-        "position_y": 0.3,  # Move higher
+        "position_y": 0.4,  # Move higher
         "vertical": True,
     },
 )
@@ -261,8 +262,9 @@ pl.add_mesh(
 # ==========================
 # Camera and display
 # ==========================
-pl.camera.position = (120, 120, 80)
+pl.camera.position = (0, 150, 0)  # View from y-axis (x-z plane view)
 pl.camera.focal_point = (0, 0, 0)
+pl.camera.up = (0, 0, 1)  # z-axis up
 
 # Add axes with labels and grid
 pl.show_bounds(
@@ -271,7 +273,7 @@ pl.show_bounds(
     xlabel='x [mm]',
     ylabel='y [mm]',
     zlabel='z [mm]',
-    font_size=8,
+    font_size=14,
     color='black',
 )
 
