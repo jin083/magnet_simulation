@@ -46,9 +46,9 @@ print(f"\nCylinder Magnet: D = {D} mm, H = {H} mm")
 # 3D Grid for field calculation
 # ==========================
 grid = pv.ImageData(
-    dimensions=(51, 51, 51),
+    dimensions=(61, 61, 61),
     spacing=(2, 2, 2),  # 2mm spacing, directly in mm
-    origin=(-50, -50, -50),  # -50mm to +50mm
+    origin=(-60, -60, -60),  # -60mm to +60mm
 )
 
 # Compute B-field (grid is in mm, magpylib uses mm)
@@ -91,67 +91,190 @@ strl = grid.streamlines_from_source(
 # Create Plotter
 # ==========================
 pl = pv.Plotter()
+pl.set_background('white')
 
-# Add magnet
-magpy.show(magnet, canvas=pl, backend="pyvista")
-
-# Add streamlines with thick tubes
-legend_args = {
-    "title": f"|B| (T)\nYXG-32\nBr={Br:.2f}T",
-    "title_font_size": 14,
-    "color": "black",
-    "position_y": 0.25,
-    "vertical": True,
-}
-
-pl.add_mesh(
-    strl.tube(radius=0.3),  # thinner tube radius
-    cmap="coolwarm",
-    scalar_bar_args=legend_args,
+# Add magnet (high resolution cylinder)
+magnet_mesh = pv.Cylinder(
+    center=(0, 0, 0),
+    direction=(0, 0, 1),
+    radius=D/2,
+    height=H,
+    resolution=100,  # Higher resolution for smoother appearance
 )
+pl.add_mesh(magnet_mesh, color='gray', opacity=0.8)
 
 # ==========================
-# Add 3D arrows at grid points
+# Add volume rendering for B-field magnitude
 # ==========================
-arrow_grid = pv.ImageData(
-    dimensions=(9, 9, 9),
-    spacing=(10, 10, 10),  # 10mm spacing
-    origin=(-40, -40, -40),
-)
+grid["B_mag"] = np.linalg.norm(grid["B"], axis=1)  # Tesla
 
-# Filter points outside magnet
-pts = arrow_grid.points
-r_pts = np.sqrt(pts[:, 0]**2 + pts[:, 1]**2)
-z_pts = np.abs(pts[:, 2])
-outside = ~((r_pts < r_mag) & (z_pts < h_mag))
-
-pts_outside = pts[outside]
-B_outside = magnet.getB(pts_outside)
-
-# Create arrows
-arrow_cloud = pv.PolyData(pts_outside)
-arrow_cloud["B"] = B_outside
-arrow_cloud["B_mag"] = np.linalg.norm(B_outside, axis=1)
-
-arrows = arrow_cloud.glyph(
-    orient="B",
-    scale="B_mag",
-    factor=50,  # large arrows
-    geom=pv.Arrow(tip_length=0.3, tip_radius=0.15, shaft_radius=0.05),
-)
-
+# ==========================
+# Add x-z plane slice (y=0)
+# ==========================
+slice_xz = grid.slice(normal='y', origin=(0, 0, 0))
 pl.add_mesh(
-    arrows,
+    slice_xz,
     scalars="B_mag",
     cmap="coolwarm",
+    clim=[0, 0.3],  # Limit color range for better contrast (0 to 0.3 T)
+    show_scalar_bar=True,
+    scalar_bar_args={
+        "title": "|B| [T]",
+        "title_font_size": 12,
+        "color": "black",
+        "position_x": 0.85,
+        "position_y": 0.3,  # Move higher
+        "vertical": True,
+    },
+)
+
+# ==========================
+# Add 2000 Gauss contour on x-z plane (0.2 T)
+# ==========================
+contour_2000G = slice_xz.contour(isosurfaces=[0.2], scalars="B_mag")
+pl.add_mesh(
+    contour_2000G,
+    color='yellow',
+    line_width=3,
+    label='2000 G'
+)
+
+# Add streamlines with thick tubes (disabled)
+# legend_args = {
+#     "title": f"|B| (T)\nYXG-32\nBr={Br:.2f}T",
+#     "title_font_size": 14,
+#     "color": "black",
+#     "position_y": 0.25,
+#     "vertical": True,
+# }
+
+# pl.add_mesh(
+#     strl.tube(radius=0.3),  # thinner tube radius
+#     cmap="coolwarm",
+#     scalar_bar_args=legend_args,
+# )
+
+# ==========================
+# Add streamlines on x-z plane only (y=0)
+# ==========================
+# Create seed points on x-z plane (more detailed)
+radii_xz = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]  # 15 radii for finer detail
+
+seed_points_xz = []
+for r in radii_xz:
+    for angle in [0, np.pi]:  # only x-z plane (y=0)
+        x = r * np.cos(angle)
+        # Top pole
+        seed_points_xz.append([x, 0, h_mag + 1])
+        # Bottom pole
+        seed_points_xz.append([x, 0, -h_mag - 1])
+
+seed_points_xz = np.array(seed_points_xz)
+seed_xz = pv.PolyData(seed_points_xz)
+
+# Generate streamlines on x-z plane
+strl_xz = grid.streamlines_from_source(
+    seed_xz,
+    vectors="B",
+    max_step_length=0.1,  # finer step
+    max_time=300,
+    integration_direction="both",
+)
+
+# Calculate B magnitude along streamlines for coloring
+strl_xz["B_mag"] = np.linalg.norm(strl_xz["B"], axis=1)  # Tesla
+
+pl.add_mesh(
+    strl_xz.tube(radius=0.2),
+    scalars="B_mag",
+    cmap="coolwarm",
+    clim=[0, 0.3],  # Same color range for consistency
     show_scalar_bar=False,
 )
+
+# Add arrows along streamlines to show direction
+# Sample every N-th point for arrows
+arrow_spacing = 150  # Show arrow every 150 points (fewer arrows)
+arrow_points = strl_xz.points[::arrow_spacing]
+arrow_vectors = strl_xz["B"][::arrow_spacing]
+arrow_mags = strl_xz["B_mag"][::arrow_spacing]
+
+# Normalize vectors for uniform arrow size
+arrow_vectors_norm = arrow_vectors / (np.linalg.norm(arrow_vectors, axis=1, keepdims=True) + 1e-10)
+
+arrow_cloud = pv.PolyData(arrow_points)
+arrow_cloud["vectors"] = arrow_vectors_norm
+arrow_cloud["B_mag"] = arrow_mags
+
+arrows_on_lines = arrow_cloud.glyph(
+    orient="vectors",
+    scale=False,
+    factor=3,  # Arrow size
+    geom=pv.Arrow(tip_length=0.4, tip_radius=0.15, shaft_radius=0.05),
+)
+
+pl.add_mesh(
+    arrows_on_lines,
+    scalars="B_mag",
+    cmap="coolwarm",
+    clim=[0, 0.3],
+    show_scalar_bar=False,
+)
+
+# ==========================
+# Add 3D arrows at grid points (disabled)
+# ==========================
+# arrow_grid = pv.ImageData(
+#     dimensions=(9, 9, 9),
+#     spacing=(10, 10, 10),  # 10mm spacing
+#     origin=(-40, -40, -40),
+# )
+
+# # Filter points outside magnet
+# pts = arrow_grid.points
+# r_pts = np.sqrt(pts[:, 0]**2 + pts[:, 1]**2)
+# z_pts = np.abs(pts[:, 2])
+# outside = ~((r_pts < r_mag) & (z_pts < h_mag))
+
+# pts_outside = pts[outside]
+# B_outside = magnet.getB(pts_outside)
+
+# # Create arrows
+# arrow_cloud = pv.PolyData(pts_outside)
+# arrow_cloud["B"] = B_outside
+# arrow_cloud["B_mag"] = np.linalg.norm(B_outside, axis=1)
+
+# arrows = arrow_cloud.glyph(
+#     orient="B",
+#     scale=False,  # uniform size, no scaling by magnitude
+#     factor=8,  # fixed arrow length
+#     geom=pv.Arrow(tip_length=0.3, tip_radius=0.05, shaft_radius=0.015),  # thin arrow
+# )
+
+# pl.add_mesh(
+#     arrows,
+#     scalars="B_mag",
+#     cmap="coolwarm",
+#     show_scalar_bar=False,
+# )
 
 # ==========================
 # Camera and display
 # ==========================
 pl.camera.position = (120, 120, 80)
 pl.camera.focal_point = (0, 0, 0)
+
+# Add axes with labels and grid
+pl.show_bounds(
+    grid='back',
+    location='outer',
+    xlabel='x [mm]',
+    ylabel='y [mm]',
+    zlabel='z [mm]',
+    font_size=8,
+    color='black',
+)
+
 pl.add_text(
     f"YXG-32 Cylinder Magnet\nD={D}mm, H={H}mm, Br={Br:.2f}T",
     position="upper_left",
